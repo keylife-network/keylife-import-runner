@@ -14,6 +14,7 @@ pass can never overlap. The web page is a read-only view of that schedule plus
 a "Run Import Now" button that pulls the next trigger forward.
 """
 
+import hmac
 import html
 import json
 import os
@@ -23,7 +24,7 @@ import time
 from datetime import datetime, timezone
 
 import requests
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, make_response, redirect, request
 
 app = Flask(__name__)
 
@@ -285,11 +286,23 @@ def start_scheduler():
     threading.Thread(target=scheduler, daemon=True, name="scheduler").start()
 
 
+TOKEN_COOKIE = "kli_token"
+
+
 def authorized():
+    """Accept the token from the query string, a cookie, or a header.
+
+    The cookie is what makes Unraid's WebUI button work: that link can't carry
+    a secret, so the first visit asks for the token and remembers it.
+    """
     if not ACCESS_TOKEN:
         return True
-    supplied = request.args.get("token") or request.headers.get("X-Access-Token", "")
-    return supplied == ACCESS_TOKEN
+    supplied = (
+        request.args.get("token")
+        or request.cookies.get(TOKEN_COOKIE)
+        or request.headers.get("X-Access-Token", "")
+    )
+    return hmac.compare_digest(supplied.encode(), ACCESS_TOKEN.encode())
 
 
 # --- Page -------------------------------------------------------------------
@@ -444,17 +457,85 @@ def page():
     body = (
         PAGE.replace("__LABEL__", html.escape(SITE_LABEL))
         .replace("__IMPORT_ID__", html.escape(IMPORT_ID))
-        .replace("__TOKEN__", html.escape(ACCESS_TOKEN or "", quote=True))
+        # Auth rides on the cookie; never render the token into the page.
+        .replace("__TOKEN__", "")
     )
     return Response(body, mimetype="text/html")
 
 
 # --- Routes -----------------------------------------------------------------
+LOGIN_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__LABEL__</title>
+<style>
+  :root { --bg:#f4f4f2; --card:#fff; --ink:#1c1c1c; --muted:#6b6b6b;
+          --line:#e2e2de; --accent:#7d1d3f; --err:#b3261e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141414; --card:#1e1e1e; --ink:#f0efec; --muted:#9a9a95;
+            --line:#333; --accent:#c9647f; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:64px 16px; background:var(--bg); color:var(--ink);
+         font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  form { max-width:400px; margin:0 auto; background:var(--card);
+         border:1px solid var(--line); border-radius:12px; padding:28px; }
+  h1 { font-size:1.2rem; margin:0 0 6px; }
+  p { color:var(--muted); font-size:.9rem; margin:0 0 20px; }
+  input { width:100%; padding:13px; font:inherit; border:1px solid var(--line);
+          border-radius:8px; background:var(--bg); color:var(--ink); }
+  button { width:100%; margin-top:12px; padding:14px; font:600 1rem/1 inherit;
+           border:0; border-radius:8px; background:var(--accent); color:#fff;
+           cursor:pointer; }
+  .err { color:var(--err); font-size:.85rem; margin:12px 0 0; }
+</style></head>
+<body>
+  <form method="post" action="/login">
+    <h1>__LABEL__</h1>
+    <p>Enter the access token to view import status.</p>
+    <input type="password" name="token" placeholder="Access token" autofocus
+           autocomplete="current-password">
+    <button type="submit">Continue</button>
+    __ERROR__
+  </form>
+</body></html>"""
+
+
+def login_page(error=False):
+    body = (
+        LOGIN_PAGE.replace("__LABEL__", html.escape(SITE_LABEL))
+        .replace("__ERROR__", '<p class="err">That token was not accepted.</p>'
+                 if error else "")
+    )
+    return Response(body, status=401 if error else 200, mimetype="text/html")
+
+
+def remember_token(response):
+    """Persist a valid token so later visits skip the prompt."""
+    response.set_cookie(
+        TOKEN_COOKIE, ACCESS_TOKEN, max_age=60 * 60 * 24 * 365,
+        httponly=True, samesite="Lax", secure=request.is_secure,
+    )
+    return response
+
+
 @app.route("/")
 def index():
     if not authorized():
-        return Response("Unauthorized", status=401)
-    return page()
+        return login_page()
+    resp = make_response(page())
+    if ACCESS_TOKEN and request.args.get("token"):
+        remember_token(resp)
+    return resp
+
+
+@app.route("/login", methods=["POST"])
+def login():
+    supplied = request.form.get("token", "")
+    if not ACCESS_TOKEN or hmac.compare_digest(
+            supplied.encode(), ACCESS_TOKEN.encode()):
+        return remember_token(make_response(redirect("/")))
+    return login_page(error=True)
 
 
 @app.route("/status")

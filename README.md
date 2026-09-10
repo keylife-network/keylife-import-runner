@@ -20,6 +20,9 @@ button for when someone doesn't want to wait for the next 4-hour slot.
 http://192.168.7.110:8123/?token=YOUR_ACCESS_TOKEN
 ```
 
+The first visit asks for the token and remembers it in a cookie, so
+Unraid's WebUI button works without the secret in the link.
+
 It shows a live countdown to the next processing pass and next trigger, whether
 an import is currently running, request and error counts, and a log of the raw
 responses from keylife.org. **Run Import Now** fires a trigger immediately and
@@ -53,6 +56,31 @@ Check it came up: `curl http://192.168.7.110:8123/healthz`
 The `/data` mount holds one file: the timestamp of the last trigger. Without it
 the container re-runs the 4-hour clock from zero on every restart. Nothing
 breaks if you omit it; the schedule just resets.
+
+### Unraid template (configure from the web UI)
+
+`unraid/keylife-import.xml` gives you the container as a normal Unraid app —
+every setting is a labeled form field, and the import key and access token are
+masked password inputs.
+
+```bash
+curl -o /boot/config/plugins/dockerMan/templates-user/my-keylife-import.xml \
+  https://raw.githubusercontent.com/keylife-network/keylife-import-runner/main/unraid/keylife-import.xml
+```
+
+Then **Docker → Add Container → Select a template → keylife-import**, fill in
+the Import Key and Access Token, and Apply. Updates become the normal Unraid
+"update ready" flow, and the WebUI button opens the status page.
+
+Two things to know:
+
+- The values you type are stored in that XML **in plaintext on the flash
+  drive**, and flash backups include it. `Mask="true"` hides them in the
+  browser, not on disk.
+- The template pulls `ghcr.io/keylife-network/keylife-import-runner:latest`,
+  which the GitHub Actions workflow publishes on every push to `main`. **After
+  the first workflow run, set that package to Public** under the repo's
+  Packages settings — otherwise Unraid gets a 403 trying to pull it.
 
 ### Updating
 

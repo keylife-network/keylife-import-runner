@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>keylife-import</Name>
+  <Repository>ghcr.io/keylife-network/keylife-import-runner:latest</Repository>
+  <Registry>https://github.com/keylife-network/keylife-import-runner/pkgs/container/keylife-import-runner</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/keylife-network/keylife-import-runner/issues</Support>
+  <Project>https://github.com/keylife-network/keylife-import-runner</Project>
+  <Overview>
+    Keeps a WP All Import job running on a schedule without anyone having to
+    click anything. Calls the WP All Import processing endpoint every 2 minutes
+    and the trigger endpoint every 4 hours, which is the cadence WP All
+    Import's own cron documentation describes.
+
+    The WebUI shows a live countdown to the next run, whether an import is
+    currently working, request and error counts, and the raw responses from the
+    site. It also has a Run Import Now button and a Pause toggle.
+
+    The first visit to the WebUI asks for the Access Token and remembers it in
+    a cookie.
+  </Overview>
+  <Category>Productivity: Tools: Other:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/keylife-network/keylife-import-runner/main/unraid/keylife-import.xml</TemplateURL>
+  <Icon/>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+
+  <Config Name="WebUI Port" Target="8080" Default="8123" Mode="tcp"
+          Description="Host port for the status page."
+          Type="Port" Display="always" Required="true" Mask="false">8123</Config>
+
+  <Config Name="State Directory" Target="/data"
+          Default="/mnt/user/appdata/keylife-import/data" Mode="rw"
+          Description="Stores the last trigger time so restarting the container does not re-run an import. Safe to leave at the default."
+          Type="Path" Display="always" Required="false" Mask="false">/mnt/user/appdata/keylife-import/data</Config>
+
+  <Config Name="Import Key" Target="WPAI_IMPORT_KEY" Default="" Mode=""
+          Description="The import_key secret from the WP All Import cron settings page."
+          Type="Variable" Display="always" Required="true" Mask="true"/>
+
+  <Config Name="Access Token" Target="ACCESS_TOKEN" Default="" Mode=""
+          Description="Password for the status page. Leave blank to let anyone on the network open it."
+          Type="Variable" Display="always" Required="false" Mask="true"/>
+
+  <Config Name="Import ID" Target="WPAI_IMPORT_ID" Default="13" Mode=""
+          Description="Which WP All Import job to run."
+          Type="Variable" Display="always" Required="true" Mask="false">13</Config>
+
+  <Config Name="Site URL" Target="WPAI_BASE_URL"
+          Default="https://www.keylife.org/wp-load.php" Mode=""
+          Description="Full URL to wp-load.php on the WordPress site."
+          Type="Variable" Display="always" Required="true"
+          Mask="false">https://www.keylife.org/wp-load.php</Config>
+
+  <Config Name="Processing Interval (seconds)" Target="PROCESSING_INTERVAL_SECONDS"
+          Default="120" Mode=""
+          Description="How often to call the processing endpoint. 120 = every 2 minutes. Raise this if the web host complains about the load."
+          Type="Variable" Display="always" Required="false" Mask="false">120</Config>
+
+  <Config Name="Trigger Interval (seconds)" Target="TRIGGER_INTERVAL_SECONDS"
+          Default="14400" Mode=""
+          Description="How often to queue a fresh import. 14400 = every 4 hours."
+          Type="Variable" Display="always" Required="false" Mask="false">14400</Config>
+
+  <Config Name="Page Title" Target="SITE_LABEL" Default="Key Life Import" Mode=""
+          Description="Heading shown on the status page."
+          Type="Variable" Display="advanced" Required="false"
+          Mask="false">Key Life Import</Config>
+
+  <Config Name="Trigger On Start" Target="TRIGGER_ON_START" Default="false" Mode=""
+          Description="Queue an import as soon as the container first starts. Ignored once a trigger time has been saved to the state directory."
+          Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+
+  <Config Name="Scheduler Enabled" Target="SCHEDULER_ENABLED" Default="true" Mode=""
+          Description="Set to false to start paused. The Pause button on the status page does the same thing at runtime."
+          Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+
+  <Config Name="Idle Response Pattern" Target="DONE_PATTERNS" Default="" Mode=""
+          Description="Advanced. Regex matching a processing response that means no import is running. Only affects the status badge, not the schedule. Leave blank for the built-in default."
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+</Container>
