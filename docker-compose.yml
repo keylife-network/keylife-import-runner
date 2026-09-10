@@ -5,21 +5,23 @@ services:
     restart: unless-stopped
     ports:
       - "8123:8080"
+    volumes:
+      - ./data:/data
     environment:
       WPAI_BASE_URL: "https://www.keylife.org/wp-load.php"
       WPAI_IMPORT_KEY: "${WPAI_IMPORT_KEY}"
       WPAI_IMPORT_ID: "13"
       SITE_LABEL: "Key Life Import"
 
-      # Shared secret. Blank = anyone who can reach the page can run it.
+      # Shared secret for the status page. Blank = no check.
       ACCESS_TOKEN: "${ACCESS_TOKEN}"
 
-      # Pacing / safety limits
-      TRIGGER_PAUSE_SECONDS: "3"
-      POLL_SECONDS: "5"
-      MAX_ATTEMPTS: "240"
-      MAX_SECONDS: "1800"
-      STABLE_REPEATS: "3"
+      # Schedule
+      PROCESSING_INTERVAL_SECONDS: "120"    # 2 minutes
+      TRIGGER_INTERVAL_SECONDS: "14400"     # 4 hours
+      TRIGGER_ON_START: "false"
+      SCHEDULER_ENABLED: "true"
+
       HTTP_TIMEOUT: "120"
     healthcheck:
       test: ["CMD", "python", "-c",
