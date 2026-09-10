@@ -75,7 +75,7 @@ docker compose up -d --build
 ```
 
 Update with `git pull && docker compose up -d --build`. This needs `git` on the
-server (Unraid ships it via the NerdTools plugin).
+server — already present on 192.168.7.110 (git 2.55.0, docker 29.5.3).
 
 ## If the end user is not on your LAN
 
